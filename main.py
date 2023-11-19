@@ -1,51 +1,60 @@
 import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import linear_kernel
-import random
+import numpy as np
+import os
 
+def calculate_and_save_cosine_similarity(df, filename='cosine_similarity.npz'):
+    tfidf_vectorizer = TfidfVectorizer()
+
+    # make all content into one
+    df['content'] = (
+            df['name'].fillna('') + ' ' +
+            df['description'].fillna('') + ' ' +
+            df['cuisine'].fillna('') + ' ' +
+            df['course'].fillna('') + ' ' +
+            df['diet'].fillna('') + ' ' +
+            df['ingredients_name'].fillna('') + ' ' +
+            df['instructions'].fillna('')
+    )
+
+    # fit & transform the content w tfidf vectorizer
+    tfidf_matrix = tfidf_vectorizer.fit_transform(df['content'])
+
+    # find cosine similarity between all foods with each other
+    cosine_sim = linear_kernel(tfidf_matrix, tfidf_matrix)
+
+    # Save the cosine similarity matrix to a file
+    np.savez_compressed(filename, cosine_sim=cosine_sim)
+
+
+# Check if cosine similarity matrix file exists
+cosine_similarity_file = 'cosine_similarity.npz'
+# make data into data frame
 data = pd.read_csv('Food_Recipe.csv')
-
-# make into data frame
 df = pd.DataFrame(data)
 
-# term frequency - inverse document frequency
-tfidf_vectorizer = TfidfVectorizer()
+if os.path.isfile(cosine_similarity_file):
+    # If the file exists, load the cosine similarity matrix from the file
+    with np.load(cosine_similarity_file) as data:
+        cosine_sim = data['cosine_sim']
+else:
+    # If the file doesn't exist, perform the calculations
+    calculate_and_save_cosine_similarity(df, cosine_similarity_file)
+    # Load the cosine similarity matrix from the file
+    with np.load(cosine_similarity_file) as data:
+        cosine_sim = data['cosine_sim']
 
-# make all content into one
-df['content'] = (
-    df['name'].fillna('') + ' ' +
-    df['description'].fillna('') + ' ' +
-    df['cuisine'].fillna('') + ' ' +
-    df['course'].fillna('') + ' ' +
-    df['diet'].fillna('') + ' ' +
-    df['ingredients_name'].fillna('') + ' ' +
-    #df['ingredients_quantity'].fillna('') + ' ' +
-    #df['prep_time (in mins)'].fillna('').astype(str) + ' ' +
-    #df['cook_time (in mins)'].fillna('').astype(str) + ' ' +
-    df['instructions'].fillna('')
-    #df['image_url'].apply(lambda x: ' '.join(x) if isinstance(x, list) else str(x))
-)
-print(df)
-# fit & transform the content w tfidf vectorizer
-tfidf_matrix = tfidf_vectorizer.fit_transform(df['content'])
+def get_recs(name, cosine_sim=cosine_sim, df=df):
+    # get id of this name from df in a case-insensitive and whitespace-insensitive way
+    idx = df.index[df['name'].str.strip().str.lower() == name.strip().lower()].tolist()
 
-# find cosine similarity btwn all foods w each other
-cosine_sim = linear_kernel(tfidf_matrix, tfidf_matrix)
+    if not idx:
+        return []
 
-def get_recs(name, cosine_sim=cosine_sim):
-    # get id of this name from df
-    for idx, x in enumerate(df['name']):
-        x = x.strip()
-        x = x.lower()
+    idx = idx[0]
 
-        name = name.strip()
-        name = name.lower()
-
-        if x == name:
-            final_idx = idx
-            break
-
-    # get sim scores of this name w id
+    # get sim scores of this name with id
     sim_scores = list(enumerate(cosine_sim[idx]))
 
     # sort in highest to lowest
@@ -63,4 +72,6 @@ def get_recs(name, cosine_sim=cosine_sim):
         final_list.append(thename.split(' Recipe')[0])
     return final_list
 
+
+# Test with different inputs
 print(get_recs("Healthy Yogurt Parfait with Oats and Fresh Fruits Recipe"))
