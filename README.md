@@ -1,3 +1,3 @@
 # Masala Magic AI API
 
-Python AI made with 
+Python API that recommends content using TFIDF vectorizer to convert text into numerical vectors. It calculates cosine similarity between input and stored content with NumPy to find the most similar items for recommendation.
